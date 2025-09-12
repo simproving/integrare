@@ -6,10 +6,10 @@ declare const process: {
   };
 };
 
-export default defineConfig({
-  // GitHub Pages base path - will be /repository-name/ when deployed
-  // For local development, this will be '/'
-  base: process.env.NODE_ENV === 'production' ? '/trendyol-oblio-integration/' : '/',
+export default defineConfig(({ command }) => ({
+  // GitHub Pages base path - will be /repository-name/ when deployed via GitHub Actions
+  // For local development and preview, this will be relative paths
+  base: command === 'build' && process.env.GITHUB_ACTIONS ? '/integrare/' : './',
   
   // Build configuration for production optimization
   build: {
@@ -62,4 +62,4 @@ export default defineConfig({
   define: {
     __DEV__: process.env.NODE_ENV !== 'production'
   }
-});
+}));
