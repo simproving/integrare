@@ -5,10 +5,14 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "node -e \"const fs=require('fs'); fs.copyFileSync('src/index.prod.html', 'dist/index.html'); fs.cpSync('src/styles', 'dist/styles', {recursive: true});\"",
     "dev": "tsc --watch",
-    "serve": "python -m http.server 8000",
-    "start": "npm run build && npm run serve"
+    "serve": "python -m http.server 8000 --directory dist",
+    "start": "npm run build && npm run serve",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
   },
   "keywords": [
     "trendyol",
@@ -20,7 +24,9 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "dependencies": {}
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
+  }
 }

@@ -12,7 +12,12 @@
   - _Requirements: 2.1, 2.2_
 
 - [ ] 2. Implement storage service with encryption
-  - [ ] 2.1 Create storage service for encrypted credential management
+  - [x] 2.1 Create storage service for encrypted credential management
+
+
+
+
+
     - Implement Web Crypto API encryption/decryption functions
     - Create methods for storing and retrieving encrypted configuration
     - Write unit tests for encryption and storage operations

@@ -8,7 +8,7 @@ export interface SyncService {
   filterPackagesWithoutInvoices(packages: TrendyolShipmentPackage[]): TrendyolShipmentPackage[];
   processSelectedPackages(packageIds: string[]): Promise<SyncResult>;
   retryFailedInvoice(packageId: string): Promise<void>;
-  checkInvoiceStatus(package: TrendyolShipmentPackage): boolean;
+  checkInvoiceStatus(shipmentPackage: TrendyolShipmentPackage): boolean;
 }
 
 export class InvoiceSyncService implements SyncService {
@@ -38,7 +38,7 @@ export class InvoiceSyncService implements SyncService {
     throw new Error('Not implemented yet');
   }
 
-  checkInvoiceStatus(package: TrendyolShipmentPackage): boolean {
+  checkInvoiceStatus(shipmentPackage: TrendyolShipmentPackage): boolean {
     // Implementation will be added in later tasks
     throw new Error('Not implemented yet');
   }

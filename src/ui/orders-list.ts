@@ -30,7 +30,7 @@ export class OrdersList {
     throw new Error('Not implemented yet');
   }
 
-  private createTableRow(package: TrendyolShipmentPackage): HTMLTableRowElement {
+  private createTableRow(shipmentPackage: TrendyolShipmentPackage): HTMLTableRowElement {
     // Implementation will be added in later tasks
     throw new Error('Not implemented yet');
   }

@@ -5,7 +5,7 @@ import { SyncResult } from '../models/common';
 
 export class Dashboard {
   private container: HTMLElement;
-  private ordersTable: import('./orders-list').OrdersList;
+  private ordersTable!: import('./orders-list').OrdersList;
   private syncService: import('../services/sync-service').SyncService;
 
   constructor(container: HTMLElement, syncService: import('../services/sync-service').SyncService) {

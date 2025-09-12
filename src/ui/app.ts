@@ -1,8 +1,8 @@
 // Main application controller and DOM manipulation
 
 export class App {
-  private dashboard: import('./dashboard').Dashboard;
-  private configPanel: import('./config-panel').ConfigurationPanel;
+  private dashboard!: import('./dashboard').Dashboard;
+  private configPanel!: import('./config-panel').ConfigurationPanel;
   private currentView: 'dashboard' | 'config' = 'dashboard';
 
   constructor() {
