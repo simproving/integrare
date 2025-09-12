@@ -5,11 +5,10 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && npm run copy-assets",
-    "copy-assets": "node -e \"const fs=require('fs'); fs.copyFileSync('src/index.prod.html', 'dist/index.html'); fs.cpSync('src/styles', 'dist/styles', {recursive: true});\"",
-    "dev": "tsc --watch",
-    "serve": "python -m http.server 8000 --directory dist",
-    "start": "npm run build && npm run serve",
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "start": "npm run build && npm run preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"
@@ -24,9 +23,12 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-typescript": "^4.0.1",
     "@vitest/ui": "^3.2.4",
     "jsdom": "^26.1.0",
     "typescript": "^5.0.0",
+    "vite": "^5.0.0",
     "vitest": "^3.2.4"
   }
 }

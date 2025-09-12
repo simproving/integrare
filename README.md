@@ -47,7 +47,7 @@ A frontend-only web application that provides manual control for creating invoic
 - **HTTP Client**: Fetch API for API communications
 - **UI Styling**: CSS3 with modern features
 - **Storage**: Browser Local Storage with encryption
-- **Build Tool**: TypeScript compiler (tsc)
+- **Build Tool**: Vite with TypeScript support
 
 ## Getting Started
 
@@ -63,16 +63,17 @@ A frontend-only web application that provides manual control for creating invoic
 
 3. Start the development server:
    ```bash
-   npm start
+   npm run dev
    ```
 
-4. Open your browser and navigate to `http://localhost:8000`
+4. Open your browser and navigate to `http://localhost:5173`
 
 ## Development
 
-- `npm run dev` - Start TypeScript compiler in watch mode
-- `npm run build` - Build the project
-- `npm run serve` - Start a local HTTP server
+- `npm run dev` - Start Vite development server with hot module replacement
+- `npm run build` - Build the project for production
+- `npm run preview` - Preview the production build locally
+- `npm start` - Build and preview the production version
 
 ## Configuration
 

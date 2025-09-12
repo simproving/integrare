@@ -1,5 +1,6 @@
 // Main entry point for the Trendyol-Oblio Integration application
 
+import './styles/main.css';
 import { App } from './ui/app';
 
 // Initialize the application when DOM is loaded
