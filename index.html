@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trendyol-Oblio Invoice Integration</title>
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <h1 class="nav-title">Trendyol-Oblio Integration</h1>
+                <div class="nav-buttons">
+                    <button id="nav-dashboard" class="nav-btn active">Dashboard</button>
+                    <button id="nav-config" class="nav-btn">Configuration</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard-section" class="content-section active">
+                <div class="dashboard-header">
+                    <h2>Invoice Synchronization Dashboard</h2>
+                    <div class="sync-status">
+                        <span id="sync-status-text">Ready</span>
+                        <div id="sync-counts" class="sync-counts hidden">
+                            <span class="count-item">
+                                <span class="count-label">Total:</span>
+                                <span id="total-count">0</span>
+                            </span>
+                            <span class="count-item">
+                                <span class="count-label">Success:</span>
+                                <span id="success-count">0</span>
+                            </span>
+                            <span class="count-item">
+                                <span class="count-label">Failed:</span>
+                                <span id="failed-count">0</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-controls">
+                    <button id="fetch-packages-btn" class="btn btn-primary">
+                        Fetch All Shipment Packages
+                    </button>
+                    <button id="process-selected-btn" class="btn btn-success" disabled>
+                        Create Invoices for Selected
+                    </button>
+                    <button id="select-all-btn" class="btn btn-secondary" disabled>
+                        Select All
+                    </button>
+                    <button id="deselect-all-btn" class="btn btn-secondary" disabled>
+                        Deselect All
+                    </button>
+                </div>
+
+                <div id="orders-container" class="orders-container">
+                    <div id="orders-table-container" class="table-container hidden">
+                        <table id="orders-table" class="orders-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all-checkbox"></th>
+                                    <th>Order ID</th>
+                                    <th>Package Number</th>
+                                    <th>Order Date</th>
+                                    <th>Customer</th>
+                                    <th>Total Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-table-body">
+                                <!-- Orders will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="no-orders-message" class="no-data-message hidden">
+                        <p>No orders without invoices found.</p>
+                    </div>
+                </div>
+
+                <div id="processing-results" class="processing-results hidden">
+                    <h3>Processing Results</h3>
+                    <div id="results-container">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Configuration Section -->
+            <section id="config-section" class="content-section">
+                <div class="config-header">
+                    <h2>API Configuration</h2>
+                    <p>Configure your Trendyol and Oblio API credentials</p>
+                </div>
+
+                <div class="config-container">
+                    <!-- Trendyol Configuration -->
+                    <div class="config-group">
+                        <h3>Trendyol API Settings</h3>
+                        <form id="trendyol-config-form" class="config-form">
+                            <div class="form-group">
+                                <label for="trendyol-api-key">API Key:</label>
+                                <input type="password" id="trendyol-api-key" name="apiKey" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="trendyol-secret-key">Secret Key:</label>
+                                <input type="password" id="trendyol-secret-key" name="secretKey" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="trendyol-supplier-id">Supplier ID:</label>
+                                <input type="text" id="trendyol-supplier-id" name="supplierId" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="trendyol-storefront-code">Store Front Code:</label>
+                                <select id="trendyol-storefront-code" name="storeFrontCode">
+                                    <option value="TR">TR (Turkey)</option>
+                                    <option value="INT">INT (International)</option>
+                                </select>
+                            </div>
+                            <button type="button" id="validate-trendyol-btn" class="btn btn-secondary">
+                                Validate Credentials
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Oblio Configuration -->
+                    <div class="config-group">
+                        <h3>Oblio API Settings</h3>
+                        <form id="oblio-config-form" class="config-form">
+                            <div class="form-group">
+                                <label for="oblio-email">Email:</label>
+                                <input type="email" id="oblio-email" name="email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="oblio-secret-key">Secret Key:</label>
+                                <input type="password" id="oblio-secret-key" name="secretKey" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="oblio-cif">Company CIF:</label>
+                                <input type="text" id="oblio-cif" name="cif" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="oblio-work-station">Work Station:</label>
+                                <input type="number" id="oblio-work-station" name="workStation" value="1" min="1" required>
+                            </div>
+                            <button type="button" id="validate-oblio-btn" class="btn btn-secondary">
+                                Validate Credentials
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="config-actions">
+                    <button id="save-config-btn" class="btn btn-primary">Save Configuration</button>
+                    <button id="export-config-btn" class="btn btn-secondary">Export Configuration</button>
+                    <input type="file" id="import-config-input" accept=".json" style="display: none;">
+                    <button id="import-config-btn" class="btn btn-secondary">Import Configuration</button>
+                </div>
+
+                <div id="config-validation-result" class="validation-result hidden">
+                    <!-- Validation results will be shown here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p id="loading-message">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <div id="message-container" class="message-container">
+            <!-- Messages will be populated here -->
+        </div>
+    </div>
+
+    <script type="module" src="src/main.ts"></script>
+</body>
+</html>
