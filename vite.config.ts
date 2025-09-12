@@ -29,7 +29,7 @@ export default defineConfig({
   },
   
   // Asset handling configuration
-  assetsInclude: ['**/*.css', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.svg'],
+  assetsInclude: ['**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif', '**/*.svg'],
   
   // Development server configuration
   server: {

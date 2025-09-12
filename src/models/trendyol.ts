@@ -158,3 +158,16 @@ export interface InvoiceInfo {
   invoiceLink: string;
   invoiceNumber: string;
 }
+
+// Trendyol API Error types
+export interface TrendyolApiError {
+  code: string;
+  message: string;
+  field?: string;
+}
+
+export interface TrendyolErrorResponse {
+  errors?: TrendyolApiError[];
+  message?: string;
+  status?: number;
+}

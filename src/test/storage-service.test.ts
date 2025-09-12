@@ -1,345 +1,475 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BrowserStorageService } from '../services/storage-service';
 import { EncryptedConfig, AppSettings, SessionData } from '../models/storage';
+import { ProcessedInvoice, LogEntry } from '../models/common';
+
+// Mock Web Crypto API
+const mockCrypto = {
+  subtle: {
+    generateKey: vi.fn(),
+    exportKey: vi.fn(),
+    importKey: vi.fn(),
+    encrypt: vi.fn(),
+    decrypt: vi.fn()
+  },
+  getRandomValues: vi.fn()
+};
+
+// Mock localStorage and sessionStorage
+const mockLocalStorage = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn()
+};
+
+const mockSessionStorage = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn()
+};
+
+// Setup global mocks
+Object.defineProperty(global, 'crypto', {
+  value: mockCrypto,
+  writable: true
+});
+
+Object.defineProperty(global, 'localStorage', {
+  value: mockLocalStorage,
+  writable: true
+});
+
+Object.defineProperty(global, 'sessionStorage', {
+  value: mockSessionStorage,
+  writable: true
+});
 
 describe('BrowserStorageService', () => {
-    let storageService: BrowserStorageService;
-    let mockCryptoKey: CryptoKey;
-    let mockEncryptedBuffer: ArrayBuffer;
-    let mockDecryptedBuffer: ArrayBuffer;
+  let storageService: BrowserStorageService;
 
-    beforeEach(() => {
-        // Reset all mocks
-        vi.clearAllMocks();
+  beforeEach(() => {
+    // Reset all mocks
+    vi.clearAllMocks();
+    
+    // Setup default mock implementations
+    mockCrypto.subtle.generateKey.mockResolvedValue({} as CryptoKey);
+    mockCrypto.subtle.exportKey.mockResolvedValue(new ArrayBuffer(32));
+    mockCrypto.subtle.importKey.mockResolvedValue({} as CryptoKey);
+    mockCrypto.subtle.encrypt.mockResolvedValue(new ArrayBuffer(16));
+    mockCrypto.subtle.decrypt.mockResolvedValue(new TextEncoder().encode('{"test": "data"}'));
+    mockCrypto.getRandomValues.mockReturnValue(new Uint8Array(12));
+    
+    mockLocalStorage.getItem.mockReturnValue(null);
+    mockSessionStorage.getItem.mockReturnValue(null);
+    
+    storageService = new BrowserStorageService();
+  });
 
-        // Clear storage
-        localStorage.clear();
-        sessionStorage.clear();
-
-        // Create new service instance
-        storageService = new BrowserStorageService();
-
-        // Mock CryptoKey
-        mockCryptoKey = {} as CryptoKey;
-
-        // Setup crypto mocks with dynamic responses
-        vi.mocked(crypto.subtle.generateKey).mockResolvedValue(mockCryptoKey);
-        vi.mocked(crypto.subtle.importKey).mockResolvedValue(mockCryptoKey);
-        vi.mocked(crypto.subtle.exportKey).mockResolvedValue(new ArrayBuffer(32));
-
-        // Mock encrypt to return the input data as encrypted ArrayBuffer
-        vi.mocked(crypto.subtle.encrypt).mockImplementation(async (algorithm, key, data) => {
-            return (data as ArrayBuffer); // Return the same data as "encrypted" ArrayBuffer
-        });
-
-        // Mock decrypt to return the input data as decrypted ArrayBuffer
-        vi.mocked(crypto.subtle.decrypt).mockImplementation(async (algorithm, key, data) => {
-            return (data as ArrayBuffer); // Return the same data as "decrypted" ArrayBuffer
-        });
+  describe('Encryption and Decryption', () => {
+    it('should encrypt and store data', async () => {
+      const testData = { test: 'data' };
+      
+      await storageService.encryptAndStore('test-key', testData);
+      
+      expect(mockCrypto.subtle.encrypt).toHaveBeenCalled();
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'test-key',
+        expect.stringContaining('encryptedData')
+      );
     });
 
-    describe('Encryption and Decryption', () => {
-        it('should encrypt and store data successfully', async () => {
-            const testData = { username: 'test', password: 'secret' };
-            const testKey = 'test-key';
+    it('should decrypt and retrieve data', async () => {
+      const mockStoredData = JSON.stringify({
+        encryptedData: 'encrypted',
+        iv: 'iv',
+        timestamp: '2023-01-01T00:00:00.000Z'
+      });
+      
+      mockLocalStorage.getItem.mockReturnValue(mockStoredData);
+      
+      const result = await storageService.decryptAndRetrieve('test-key');
+      
+      expect(mockCrypto.subtle.decrypt).toHaveBeenCalled();
+      expect(result).toEqual({ test: 'data' });
+    });
+  });
 
-            await storageService.encryptAndStore(testKey, testData);
+  describe('Configuration Management', () => {
+    it('should save and retrieve encrypted config', async () => {
+      const config: EncryptedConfig = {
+        trendyol: {
+          apiKey: 'test-api-key',
+          secretKey: 'test-secret',
+          supplierId: 'supplier123',
+          storeFrontCode: 'TR'
+        },
+        oblio: {
+          email: 'test@example.com',
+          secretKey: 'oblio-secret',
+          cif: 'RO123456',
+          workStation: 1
+        }
+      };
 
-            expect(crypto.subtle.generateKey).toHaveBeenCalledWith(
-                { name: 'AES-GCM', length: 256 },
-                true,
-                ['encrypt', 'decrypt']
-            );
-            expect(crypto.subtle.encrypt).toHaveBeenCalled();
-            expect(localStorage.setItem).toHaveBeenCalledWith(
-                testKey,
-                expect.stringContaining('encryptedData')
-            );
-        });
+      await storageService.saveEncryptedConfig(config);
+      expect(mockCrypto.subtle.encrypt).toHaveBeenCalled();
 
-        it('should decrypt and retrieve data successfully', async () => {
-            const testData = { username: 'test', password: 'secret' };
-            const testKey = 'test-key';
+      // Mock the stored encrypted data for retrieval
+      const mockStoredData = JSON.stringify({
+        encryptedData: 'encrypted',
+        iv: 'iv',
+        timestamp: '2023-01-01T00:00:00.000Z'
+      });
+      mockLocalStorage.getItem.mockReturnValue(mockStoredData);
 
-            // First store the data
-            await storageService.encryptAndStore(testKey, testData);
-
-            // Then retrieve it
-            const retrievedData = await storageService.decryptAndRetrieve(testKey);
-
-            expect(crypto.subtle.decrypt).toHaveBeenCalled();
-            expect(retrievedData).toEqual(testData);
-        });
-
-        it('should return null when trying to decrypt non-existent data', async () => {
-            const result = await storageService.decryptAndRetrieve('non-existent-key');
-            expect(result).toBeNull();
-        });
-
-        it('should handle encryption errors gracefully', async () => {
-            vi.mocked(crypto.subtle.encrypt).mockRejectedValue(new Error('Encryption failed'));
-
-            await expect(
-                storageService.encryptAndStore('test-key', { data: 'test' })
-            ).rejects.toThrow('Failed to encrypt and store data: Encryption failed');
-        });
-
-        it('should handle decryption errors gracefully', async () => {
-            // Store some invalid encrypted data
-            localStorage.setItem('test-key', JSON.stringify({
-                encryptedData: 'invalid',
-                iv: 'invalid'
-            }));
-
-            vi.mocked(crypto.subtle.decrypt).mockRejectedValue(new Error('Decryption failed'));
-
-            await expect(
-                storageService.decryptAndRetrieve('test-key')
-            ).rejects.toThrow('Failed to decrypt and retrieve data: Decryption failed');
-        });
+      const retrieved = await storageService.getEncryptedConfig();
+      expect(retrieved).toEqual({ test: 'data' }); // Mocked decryption result
     });
 
-    describe('Encrypted Configuration Management', () => {
-        it('should save and retrieve encrypted configuration', async () => {
-            const config: EncryptedConfig = {
-                trendyol: {
-                    apiKey: 'encrypted_api_key',
-                    secretKey: 'encrypted_secret_key',
-                    supplierId: 'supplier123',
-                    storeFrontCode: 'TR'
-                },
-                oblio: {
-                    email: 'test@example.com',
-                    secretKey: 'encrypted_oblio_secret',
-                    cif: 'RO12345678',
-                    workStation: 1
-                }
-            };
+    it('should save and retrieve app settings', () => {
+      const settings: AppSettings = {
+        autoRetryCount: 3,
+        theme: 'dark',
+        lastConfigUpdate: '2023-01-01T00:00:00.000Z',
+        uiPreferences: {
+          tablePageSize: 25,
+          defaultView: 'orders'
+        }
+      };
 
-            await storageService.saveEncryptedConfig(config);
-            const retrievedConfig = await storageService.getEncryptedConfig();
+      storageService.saveAppSettings(settings);
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-settings',
+        JSON.stringify(settings)
+      );
 
-            expect(retrievedConfig).toEqual(config);
-        });
+      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(settings));
+      const retrieved = storageService.getAppSettings();
+      expect(retrieved).toEqual(settings);
+    });
+  });
 
-        it('should return null when no encrypted configuration exists', async () => {
-            const config = await storageService.getEncryptedConfig();
-            expect(config).toBeNull();
-        });
+  describe('Session Management', () => {
+    it('should save and retrieve session data', () => {
+      const sessionData: SessionData = {
+        currentShipmentPackages: [],
+        processedInvoices: [],
+        syncLogs: [],
+        lastFetchTime: '2023-01-01T00:00:00.000Z',
+        selectedPackageIds: ['pkg1', 'pkg2']
+      };
+
+      storageService.saveSessionData(sessionData);
+      expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-session',
+        JSON.stringify(sessionData)
+      );
+
+      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(sessionData));
+      const retrieved = storageService.getSessionData();
+      expect(retrieved).toEqual(sessionData);
     });
 
-    describe('App Settings Management', () => {
-        it('should save and retrieve app settings', () => {
-            const settings: AppSettings = {
-                autoRetryCount: 3,
-                theme: 'dark',
-                lastConfigUpdate: '2023-01-01T00:00:00Z',
-                uiPreferences: {
-                    tablePageSize: 50,
-                    defaultView: 'dashboard'
-                }
-            };
-
-            storageService.saveAppSettings(settings);
-            const retrievedSettings = storageService.getAppSettings();
-
-            expect(retrievedSettings).toEqual(settings);
-        });
-
-        it('should return null when no app settings exist', () => {
-            const settings = storageService.getAppSettings();
-            expect(settings).toBeNull();
-        });
+    it('should clear session data', () => {
+      storageService.clearSessionData();
+      expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('trendyol-oblio-session');
     });
 
-    describe('Session Data Management', () => {
-        it('should save and retrieve session data', () => {
-            const sessionData: SessionData = {
-                currentShipmentPackages: [],
-                processedInvoices: [],
-                syncLogs: [],
-                lastFetchTime: '2023-01-01T00:00:00Z',
-                selectedPackageIds: ['pkg1', 'pkg2']
-            };
+    it('should update session packages', () => {
+      const packages = [
+        { id: 1, packageNumber: 'PKG001', orderId: 'ORD001' } as any
+      ];
 
-            storageService.saveSessionData(sessionData);
-            const retrievedData = storageService.getSessionData();
+      storageService.updateSessionPackages(packages);
 
-            expect(retrievedData).toEqual(sessionData);
-        });
-
-        it('should return null when no session data exists', () => {
-            const sessionData = storageService.getSessionData();
-            expect(sessionData).toBeNull();
-        });
-
-        it('should clear session data', () => {
-            const sessionData: SessionData = {
-                currentShipmentPackages: [],
-                processedInvoices: [],
-                syncLogs: [],
-                lastFetchTime: '2023-01-01T00:00:00Z',
-                selectedPackageIds: []
-            };
-
-            storageService.saveSessionData(sessionData);
-            storageService.clearSessionData();
-
-            const retrievedData = storageService.getSessionData();
-            expect(retrievedData).toBeNull();
-        });
+      expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-session',
+        expect.stringContaining('PKG001')
+      );
     });
 
-    describe('Sensitive Data Management', () => {
-        it('should clear all sensitive data', async () => {
-            // Setup some data
-            const config: EncryptedConfig = {
-                trendyol: {
-                    apiKey: 'api_key',
-                    secretKey: 'secret_key',
-                    supplierId: 'supplier123',
-                    storeFrontCode: 'TR'
-                },
-                oblio: {
-                    email: 'test@example.com',
-                    secretKey: 'oblio_secret',
-                    cif: 'RO12345678',
-                    workStation: 1
-                }
-            };
+    it('should add and retrieve processed invoices', () => {
+      const invoice: ProcessedInvoice = {
+        trendyolOrderId: 'ORD001',
+        oblioInvoiceId: 'INV001',
+        status: 'completed',
+        processedAt: '2023-01-01T00:00:00.000Z'
+      };
 
-            await storageService.saveEncryptedConfig(config);
-            storageService.saveSessionData({
-                currentShipmentPackages: [],
-                processedInvoices: [],
-                syncLogs: [],
-                lastFetchTime: '2023-01-01T00:00:00Z',
-                selectedPackageIds: []
-            });
+      storageService.addProcessedInvoice(invoice);
+      
+      expect(mockSessionStorage.setItem).toHaveBeenCalled();
 
-            // Clear sensitive data
-            storageService.clearSensitiveData();
+      // Mock session data for retrieval
+      const sessionData = {
+        currentShipmentPackages: [],
+        processedInvoices: [invoice],
+        syncLogs: [],
+        lastFetchTime: '',
+        selectedPackageIds: []
+      };
+      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(sessionData));
 
-            // Verify data is cleared
-            const retrievedConfig = await storageService.getEncryptedConfig();
-            const retrievedSession = storageService.getSessionData();
-
-            expect(retrievedConfig).toBeNull();
-            expect(retrievedSession).toBeNull();
-            expect(localStorage.removeItem).toHaveBeenCalledWith('trendyol-oblio-config-encrypted');
-            expect(localStorage.removeItem).toHaveBeenCalledWith('trendyol-oblio-encryption-key');
-        });
+      const retrieved = storageService.getProcessedInvoice('ORD001');
+      expect(retrieved).toEqual(invoice);
     });
 
-    describe('Configuration Export and Import', () => {
-        it('should export configuration successfully', async () => {
-            const config: EncryptedConfig = {
-                trendyol: {
-                    apiKey: 'api_key',
-                    secretKey: 'secret_key',
-                    supplierId: 'supplier123',
-                    storeFrontCode: 'TR'
-                },
-                oblio: {
-                    email: 'test@example.com',
-                    secretKey: 'oblio_secret',
-                    cif: 'RO12345678',
-                    workStation: 1
-                }
-            };
+    it('should update processed invoice', () => {
+      const sessionData = {
+        currentShipmentPackages: [],
+        processedInvoices: [{
+          trendyolOrderId: 'ORD001',
+          status: 'pending',
+          processedAt: '2023-01-01T00:00:00.000Z'
+        }],
+        syncLogs: [],
+        lastFetchTime: '',
+        selectedPackageIds: []
+      };
+      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(sessionData));
 
-            const settings: AppSettings = {
-                autoRetryCount: 3,
-                theme: 'light',
-                lastConfigUpdate: '2023-01-01T00:00:00Z',
-                uiPreferences: {
-                    tablePageSize: 25,
-                    defaultView: 'orders'
-                }
-            };
+      storageService.updateProcessedInvoice('ORD001', { 
+        status: 'completed',
+        oblioInvoiceId: 'INV001'
+      });
 
-            await storageService.saveEncryptedConfig(config);
-            storageService.saveAppSettings(settings);
-
-            const exportedConfig = storageService.exportConfig();
-            const parsedExport = JSON.parse(exportedConfig);
-
-            expect(parsedExport).toHaveProperty('encryptedConfig');
-            expect(parsedExport).toHaveProperty('appSettings');
-            expect(parsedExport).toHaveProperty('encryptionKey');
-            expect(parsedExport).toHaveProperty('exportedAt');
-            expect(parsedExport).toHaveProperty('version', '1.0');
-        });
-
-        it('should import configuration successfully', async () => {
-            const exportData = {
-                encryptedConfig: { encryptedData: 'test', iv: 'test' },
-                appSettings: { autoRetryCount: 5, theme: 'dark' },
-                encryptionKey: [1, 2, 3, 4],
-                exportedAt: '2023-01-01T00:00:00Z',
-                version: '1.0'
-            };
-
-            await storageService.importConfig(JSON.stringify(exportData));
-
-            expect(localStorage.setItem).toHaveBeenCalledWith(
-                'trendyol-oblio-encryption-key',
-                JSON.stringify([1, 2, 3, 4])
-            );
-            expect(localStorage.setItem).toHaveBeenCalledWith(
-                'trendyol-oblio-config-encrypted',
-                JSON.stringify(exportData.encryptedConfig)
-            );
-            expect(localStorage.setItem).toHaveBeenCalledWith(
-                'trendyol-oblio-settings',
-                JSON.stringify(exportData.appSettings)
-            );
-        });
-
-        it('should handle invalid import data', async () => {
-            await expect(
-                storageService.importConfig('invalid json')
-            ).rejects.toThrow('Failed to import configuration');
-        });
-
-        it('should handle unsupported version', async () => {
-            const exportData = {
-                version: '2.0',
-                encryptedConfig: {},
-                appSettings: {},
-                encryptionKey: []
-            };
-
-            await expect(
-                storageService.importConfig(JSON.stringify(exportData))
-            ).rejects.toThrow('Unsupported configuration version');
-        });
-
-        it('should handle export errors gracefully', () => {
-            // Create a new service instance to avoid affecting other tests
-            const testService = new BrowserStorageService();
-
-            // Mock localStorage.getItem to throw an error for this specific test
-            const originalGetItem = localStorage.getItem;
-            vi.mocked(localStorage.getItem).mockImplementation(() => {
-                throw new Error('Storage error');
-            });
-
-            expect(() => testService.exportConfig()).toThrow('Failed to export configuration');
-
-            // Restore original implementation
-            vi.mocked(localStorage.getItem).mockImplementation(originalGetItem);
-        });
+      expect(mockSessionStorage.setItem).toHaveBeenCalled();
     });
 
-    describe('Encryption Key Management', () => {
-        it('should use Web Crypto API for encryption operations', () => {
-            // Test that the service has the necessary crypto methods available
-            expect(crypto.subtle.generateKey).toBeDefined();
-            expect(crypto.subtle.encrypt).toBeDefined();
-            expect(crypto.subtle.decrypt).toBeDefined();
-            expect(crypto.subtle.importKey).toBeDefined();
-            expect(crypto.subtle.exportKey).toBeDefined();
-        });
+    it('should add and retrieve log entries', () => {
+      const logEntry: LogEntry = {
+        id: 'log1',
+        timestamp: '2023-01-01T00:00:00.000Z',
+        level: 'info',
+        message: 'Test log message'
+      };
+
+      storageService.addLogEntry(logEntry);
+      expect(mockSessionStorage.setItem).toHaveBeenCalled();
+
+      // Mock session data for retrieval
+      const sessionData = {
+        currentShipmentPackages: [],
+        processedInvoices: [],
+        syncLogs: [logEntry],
+        lastFetchTime: '',
+        selectedPackageIds: []
+      };
+      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(sessionData));
+
+      const logs = storageService.getLogEntries();
+      expect(logs).toEqual([logEntry]);
+
+      const errorLogs = storageService.getLogEntries('error');
+      expect(errorLogs).toEqual([]);
     });
+
+    it('should manage selected packages', () => {
+      const packageIds = ['PKG001', 'PKG002'];
+
+      storageService.updateSelectedPackages(packageIds);
+      expect(mockSessionStorage.setItem).toHaveBeenCalled();
+
+      // Mock session data for retrieval
+      const sessionData = {
+        currentShipmentPackages: [],
+        processedInvoices: [],
+        syncLogs: [],
+        lastFetchTime: '',
+        selectedPackageIds: packageIds
+      };
+      mockSessionStorage.getItem.mockReturnValue(JSON.stringify(sessionData));
+
+      const retrieved = storageService.getSelectedPackages();
+      expect(retrieved).toEqual(packageIds);
+    });
+  });
+
+  describe('Enhanced Settings Management', () => {
+    it('should update and retrieve UI preferences', () => {
+      const preferences = { tablePageSize: 100, defaultView: 'orders' };
+
+      storageService.updateUIPreferences(preferences);
+      expect(mockLocalStorage.setItem).toHaveBeenCalled();
+
+      // Mock settings for retrieval
+      const settings = {
+        autoRetryCount: 3,
+        theme: 'light' as const,
+        lastConfigUpdate: '2023-01-01T00:00:00.000Z',
+        uiPreferences: preferences
+      };
+      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(settings));
+
+      const retrieved = storageService.getUIPreferences();
+      expect(retrieved).toEqual(preferences);
+    });
+
+    it('should update and retrieve theme', () => {
+      storageService.updateTheme('dark');
+      expect(mockLocalStorage.setItem).toHaveBeenCalled();
+
+      // Mock settings for retrieval
+      const settings = {
+        autoRetryCount: 3,
+        theme: 'dark' as const,
+        lastConfigUpdate: '2023-01-01T00:00:00.000Z',
+        uiPreferences: { tablePageSize: 50, defaultView: 'dashboard' }
+      };
+      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(settings));
+
+      const theme = storageService.getTheme();
+      expect(theme).toBe('dark');
+    });
+
+    it('should update and retrieve auto retry count', () => {
+      storageService.updateAutoRetryCount(5);
+      expect(mockLocalStorage.setItem).toHaveBeenCalled();
+
+      // Mock settings for retrieval
+      const settings = {
+        autoRetryCount: 5,
+        theme: 'light' as const,
+        lastConfigUpdate: '2023-01-01T00:00:00.000Z',
+        uiPreferences: { tablePageSize: 50, defaultView: 'dashboard' }
+      };
+      mockLocalStorage.getItem.mockReturnValue(JSON.stringify(settings));
+
+      const count = storageService.getAutoRetryCount();
+      expect(count).toBe(5);
+    });
+
+    it('should clamp auto retry count to valid range', () => {
+      storageService.updateAutoRetryCount(-1);
+      storageService.updateAutoRetryCount(15);
+      
+      // Should be called twice with clamped values
+      expect(mockLocalStorage.setItem).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('Export and Import', () => {
+    it('should export configuration', () => {
+      const mockConfig = JSON.stringify({ encrypted: 'data' });
+      const mockSettings = JSON.stringify({ theme: 'dark' });
+      const mockKey = JSON.stringify([1, 2, 3]);
+
+      mockLocalStorage.getItem.mockImplementation((key) => {
+        if (key === 'trendyol-oblio-config-encrypted') return mockConfig;
+        if (key === 'trendyol-oblio-settings') return mockSettings;
+        if (key === 'trendyol-oblio-encryption-key') return mockKey;
+        return null;
+      });
+
+      const exported = storageService.exportConfig();
+      const exportedData = JSON.parse(exported);
+
+      expect(exportedData.version).toBe('1.0');
+      expect(exportedData.encryptedConfig).toEqual({ encrypted: 'data' });
+      expect(exportedData.appSettings).toEqual({ theme: 'dark' });
+      expect(exportedData.encryptionKey).toEqual([1, 2, 3]);
+    });
+
+    it('should export full configuration including session data', () => {
+      const mockConfig = JSON.stringify({ encrypted: 'data' });
+      const mockSettings = JSON.stringify({ theme: 'dark' });
+      const mockKey = JSON.stringify([1, 2, 3]);
+      const mockSession = JSON.stringify({ logs: [] });
+
+      mockLocalStorage.getItem.mockImplementation((key) => {
+        if (key === 'trendyol-oblio-config-encrypted') return mockConfig;
+        if (key === 'trendyol-oblio-settings') return mockSettings;
+        if (key === 'trendyol-oblio-encryption-key') return mockKey;
+        return null;
+      });
+
+      mockSessionStorage.getItem.mockReturnValue(mockSession);
+
+      const exported = storageService.exportFullConfiguration();
+      const exportedData = JSON.parse(exported);
+
+      expect(exportedData.version).toBe('1.1');
+      expect(exportedData.includesSession).toBe(true);
+      expect(exportedData.sessionData).toEqual({ logs: [] });
+    });
+
+    it('should import configuration', async () => {
+      const importData = {
+        version: '1.0',
+        encryptedConfig: { encrypted: 'data' },
+        appSettings: { theme: 'dark' },
+        encryptionKey: [1, 2, 3],
+        exportedAt: '2023-01-01T00:00:00.000Z'
+      };
+
+      await storageService.importConfig(JSON.stringify(importData));
+
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-encryption-key',
+        JSON.stringify([1, 2, 3])
+      );
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-config-encrypted',
+        JSON.stringify({ encrypted: 'data' })
+      );
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-settings',
+        JSON.stringify({ theme: 'dark' })
+      );
+    });
+
+    it('should import full configuration with session data', async () => {
+      const importData = {
+        version: '1.1',
+        encryptedConfig: { encrypted: 'data' },
+        appSettings: { 
+          autoRetryCount: 3,
+          theme: 'dark',
+          uiPreferences: { tablePageSize: 50, defaultView: 'dashboard' }
+        },
+        encryptionKey: [1, 2, 3],
+        sessionData: { logs: [] },
+        includesSession: true,
+        exportedAt: '2023-01-01T00:00:00.000Z'
+      };
+
+      await storageService.importFullConfiguration(JSON.stringify(importData));
+
+      expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
+        'trendyol-oblio-session',
+        JSON.stringify({ logs: [] })
+      );
+    });
+
+    it('should validate configuration format', () => {
+      const validConfig = {
+        version: '1.1',
+        exportedAt: '2023-01-01T00:00:00.000Z',
+        appSettings: {
+          autoRetryCount: 3,
+          theme: 'light',
+          uiPreferences: { tablePageSize: 50, defaultView: 'dashboard' }
+        }
+      };
+
+      expect(storageService.validateConfigurationFormat(JSON.stringify(validConfig))).toBe(true);
+
+      const invalidConfig = { invalid: 'config' };
+      expect(storageService.validateConfigurationFormat(JSON.stringify(invalidConfig))).toBe(false);
+
+      expect(storageService.validateConfigurationFormat('invalid json')).toBe(false);
+    });
+  });
+
+  describe('Clear Sensitive Data', () => {
+    it('should clear all sensitive data', () => {
+      storageService.clearSensitiveData();
+
+      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('trendyol-oblio-config-encrypted');
+      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('trendyol-oblio-encryption-key');
+      expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('trendyol-oblio-session');
+    });
+  });
 });

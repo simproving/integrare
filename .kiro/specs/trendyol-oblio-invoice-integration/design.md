@@ -88,8 +88,8 @@ interface ShipmentPackageResponse {
 ```
 
 **API Endpoints Used:**
-- `GET https://api.trendyol.com/sapigw/suppliers/{supplierId}/orders/shipment-packages` - Fetch shipment packages
-- `POST https://api.trendyol.com/sapigw/suppliers/{supplierId}/orders/{orderId}/invoice` - Send invoice to order
+- `GET https://apigw.trendyol.com/integration/order/sellers/{sellerId}/orders` - Fetch shipment packages
+- `POST` https://apigw.trendyol.com/integration/sellers/{sellerId}/seller-invoice-file - Send invoice to order
 
 **Authentication:**
 - Basic Authentication using API Key and API Secret
@@ -110,6 +110,7 @@ interface ShipmentPackageResponse {
 
 **API Documentation Reference:**
 - International Order V2 API: https://developers.trendyol.com/int/docs/international-marketplace/international-order-v2/int-getShipmentPackages
+- invoice send: https://developers.trendyol.com/int/docs/international-marketplace/invoice-integration/int-send-invoice-file
 
 ### 3. Oblio API Client
 

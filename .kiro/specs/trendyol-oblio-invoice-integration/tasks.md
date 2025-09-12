@@ -23,14 +23,26 @@
     - Write unit tests for encryption and storage operations
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 2.2 Implement session and settings storage
+  - [x] 2.2 Implement session and settings storage
+
+
+
+
+
+
     - Create methods for managing session data in Session Storage
     - Implement plain Local Storage for UI preferences and settings
     - Add export/import functionality for configuration backup
     - _Requirements: 2.3, 2.4_
 
 - [ ] 3. Create Trendyol API client
-  - [ ] 3.1 Implement basic Trendyol API client structure
+  - [x] 3.1 Implement basic Trendyol API client structure
+
+
+
+
+
+
     - Create TrendyolClient class with authentication headers
     - Implement credential validation method
     - Add error handling for API responses

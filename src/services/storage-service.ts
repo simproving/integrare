@@ -8,7 +8,7 @@ export interface StorageService {
   clearSensitiveData(): void;
   exportConfig(): string;
   importConfig(configString: string): Promise<void>;
-  
+
   // Specific methods for different storage types
   saveEncryptedConfig(config: EncryptedConfig): Promise<void>;
   getEncryptedConfig(): Promise<EncryptedConfig | null>;
@@ -17,6 +17,30 @@ export interface StorageService {
   saveSessionData(data: SessionData): void;
   getSessionData(): SessionData | null;
   clearSessionData(): void;
+
+  // Enhanced session management methods
+  updateSessionPackages(packages: import('../models/trendyol').TrendyolShipmentPackage[]): void;
+  addProcessedInvoice(invoice: import('../models/common').ProcessedInvoice): void;
+  updateProcessedInvoice(orderId: string, updates: Partial<import('../models/common').ProcessedInvoice>): void;
+  getProcessedInvoice(orderId: string): import('../models/common').ProcessedInvoice | null;
+  addLogEntry(entry: import('../models/common').LogEntry): void;
+  getLogEntries(level?: 'info' | 'warn' | 'error'): import('../models/common').LogEntry[];
+  clearLogEntries(): void;
+  updateSelectedPackages(packageIds: string[]): void;
+  getSelectedPackages(): string[];
+
+  // Enhanced settings management methods
+  updateUIPreferences(preferences: Partial<AppSettings['uiPreferences']>): void;
+  getUIPreferences(): AppSettings['uiPreferences'];
+  updateTheme(theme: 'light' | 'dark'): void;
+  getTheme(): 'light' | 'dark';
+  updateAutoRetryCount(count: number): void;
+  getAutoRetryCount(): number;
+
+  // Configuration backup methods
+  exportFullConfiguration(): string;
+  importFullConfiguration(configString: string): Promise<void>;
+  validateConfigurationFormat(configString: string): boolean;
 }
 
 export class BrowserStorageService implements StorageService {
@@ -108,7 +132,7 @@ export class BrowserStorageService implements StorageService {
     try {
       const jsonData = JSON.stringify(data);
       const { encryptedData, iv } = await this.encryptData(jsonData);
-      
+
       const storageData = {
         encryptedData,
         iv,
@@ -170,7 +194,7 @@ export class BrowserStorageService implements StorageService {
   async importConfig(configString: string): Promise<void> {
     try {
       const importData = JSON.parse(configString);
-      
+
       if (!importData.version || importData.version !== '1.0') {
         throw new Error('Unsupported configuration version');
       }
@@ -223,5 +247,260 @@ export class BrowserStorageService implements StorageService {
 
   clearSessionData(): void {
     sessionStorage.removeItem(this.SESSION_DATA_KEY);
+  }
+
+  // Enhanced session management methods
+  updateSessionPackages(packages: import('../models/trendyol').TrendyolShipmentPackage[]): void {
+    const sessionData = this.getSessionData() || this.getDefaultSessionData();
+    sessionData.currentShipmentPackages = packages;
+    sessionData.lastFetchTime = new Date().toISOString();
+    this.saveSessionData(sessionData);
+  }
+
+  addProcessedInvoice(invoice: import('../models/common').ProcessedInvoice): void {
+    const sessionData = this.getSessionData() || this.getDefaultSessionData();
+    const existingIndex = sessionData.processedInvoices.findIndex(
+      inv => inv.trendyolOrderId === invoice.trendyolOrderId
+    );
+
+    if (existingIndex >= 0) {
+      sessionData.processedInvoices[existingIndex] = invoice;
+    } else {
+      sessionData.processedInvoices.push(invoice);
+    }
+
+    this.saveSessionData(sessionData);
+  }
+
+  updateProcessedInvoice(orderId: string, updates: Partial<import('../models/common').ProcessedInvoice>): void {
+    const sessionData = this.getSessionData() || this.getDefaultSessionData();
+    const invoiceIndex = sessionData.processedInvoices.findIndex(
+      inv => inv.trendyolOrderId === orderId
+    );
+
+    if (invoiceIndex >= 0) {
+      const existingInvoice = sessionData.processedInvoices[invoiceIndex];
+      if (!existingInvoice) {
+        return; // Exit early if invoice doesn't exist
+      }
+
+      // Only update properties that are actually provided in the updates object
+      const updatedInvoice: import('../models/common').ProcessedInvoice = {
+        trendyolOrderId: existingInvoice.trendyolOrderId, // Always preserve required field
+        processedAt: existingInvoice.processedAt, // Always preserve required field
+        status: updates.status !== undefined ? updates.status : existingInvoice.status
+      };
+
+      // Only include optional properties if they have actual values
+      const oblioInvoiceId = updates.oblioInvoiceId !== undefined ? updates.oblioInvoiceId : existingInvoice.oblioInvoiceId;
+      if (oblioInvoiceId !== undefined) {
+        updatedInvoice.oblioInvoiceId = oblioInvoiceId;
+      }
+
+      const errorMessage = updates.errorMessage !== undefined ? updates.errorMessage : existingInvoice.errorMessage;
+      if (errorMessage !== undefined) {
+        updatedInvoice.errorMessage = errorMessage;
+      }
+
+      sessionData.processedInvoices[invoiceIndex] = updatedInvoice;
+      this.saveSessionData(sessionData);
+    }
+  }
+
+  getProcessedInvoice(orderId: string): import('../models/common').ProcessedInvoice | null {
+    const sessionData = this.getSessionData();
+    if (!sessionData) return null;
+
+    return sessionData.processedInvoices.find(
+      inv => inv.trendyolOrderId === orderId
+    ) || null;
+  }
+
+  addLogEntry(entry: import('../models/common').LogEntry): void {
+    const sessionData = this.getSessionData() || this.getDefaultSessionData();
+    sessionData.syncLogs.push(entry);
+
+    // Keep only the last 1000 log entries to prevent memory issues
+    if (sessionData.syncLogs.length > 1000) {
+      sessionData.syncLogs = sessionData.syncLogs.slice(-1000);
+    }
+
+    this.saveSessionData(sessionData);
+  }
+
+  getLogEntries(level?: 'info' | 'warn' | 'error'): import('../models/common').LogEntry[] {
+    const sessionData = this.getSessionData();
+    if (!sessionData) return [];
+
+    if (level) {
+      return sessionData.syncLogs.filter(log => log.level === level);
+    }
+
+    return [...sessionData.syncLogs];
+  }
+
+  clearLogEntries(): void {
+    const sessionData = this.getSessionData() || this.getDefaultSessionData();
+    sessionData.syncLogs = [];
+    this.saveSessionData(sessionData);
+  }
+
+  updateSelectedPackages(packageIds: string[]): void {
+    const sessionData = this.getSessionData() || this.getDefaultSessionData();
+    sessionData.selectedPackageIds = [...packageIds];
+    this.saveSessionData(sessionData);
+  }
+
+  getSelectedPackages(): string[] {
+    const sessionData = this.getSessionData();
+    return sessionData ? [...sessionData.selectedPackageIds] : [];
+  }
+
+  // Enhanced settings management methods
+  updateUIPreferences(preferences: Partial<AppSettings['uiPreferences']>): void {
+    const settings = this.getAppSettings() || this.getDefaultAppSettings();
+    settings.uiPreferences = { ...settings.uiPreferences, ...preferences };
+    settings.lastConfigUpdate = new Date().toISOString();
+    this.saveAppSettings(settings);
+  }
+
+  getUIPreferences(): AppSettings['uiPreferences'] {
+    const settings = this.getAppSettings();
+    return settings ? settings.uiPreferences : this.getDefaultAppSettings().uiPreferences;
+  }
+
+  updateTheme(theme: 'light' | 'dark'): void {
+    const settings = this.getAppSettings() || this.getDefaultAppSettings();
+    settings.theme = theme;
+    settings.lastConfigUpdate = new Date().toISOString();
+    this.saveAppSettings(settings);
+  }
+
+  getTheme(): 'light' | 'dark' {
+    const settings = this.getAppSettings();
+    return settings ? settings.theme : this.getDefaultAppSettings().theme;
+  }
+
+  updateAutoRetryCount(count: number): void {
+    const settings = this.getAppSettings() || this.getDefaultAppSettings();
+    settings.autoRetryCount = Math.max(0, Math.min(10, count)); // Clamp between 0 and 10
+    settings.lastConfigUpdate = new Date().toISOString();
+    this.saveAppSettings(settings);
+  }
+
+  getAutoRetryCount(): number {
+    const settings = this.getAppSettings();
+    return settings ? settings.autoRetryCount : this.getDefaultAppSettings().autoRetryCount;
+  }
+
+  // Configuration backup methods
+  exportFullConfiguration(): string {
+    try {
+      const encryptedConfig = localStorage.getItem(this.ENCRYPTED_CONFIG_KEY);
+      const appSettings = localStorage.getItem(this.APP_SETTINGS_KEY);
+      const encryptionKey = localStorage.getItem(this.ENCRYPTION_KEY_NAME);
+      const sessionData = sessionStorage.getItem(this.SESSION_DATA_KEY);
+
+      const exportData = {
+        encryptedConfig: encryptedConfig ? JSON.parse(encryptedConfig) : null,
+        appSettings: appSettings ? JSON.parse(appSettings) : null,
+        encryptionKey: encryptionKey ? JSON.parse(encryptionKey) : null,
+        sessionData: sessionData ? JSON.parse(sessionData) : null,
+        exportedAt: new Date().toISOString(),
+        version: '1.1',
+        includesSession: true
+      };
+
+      return JSON.stringify(exportData, null, 2);
+    } catch (error) {
+      throw new Error(`Failed to export full configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async importFullConfiguration(configString: string): Promise<void> {
+    try {
+      const importData = JSON.parse(configString);
+
+      if (!this.validateConfigurationFormat(configString)) {
+        throw new Error('Invalid configuration format');
+      }
+
+      // Import encryption key first
+      if (importData.encryptionKey) {
+        localStorage.setItem(this.ENCRYPTION_KEY_NAME, JSON.stringify(importData.encryptionKey));
+        this.encryptionKey = null; // Reset to force re-import
+      }
+
+      // Import encrypted configuration
+      if (importData.encryptedConfig) {
+        localStorage.setItem(this.ENCRYPTED_CONFIG_KEY, JSON.stringify(importData.encryptedConfig));
+      }
+
+      // Import app settings
+      if (importData.appSettings) {
+        localStorage.setItem(this.APP_SETTINGS_KEY, JSON.stringify(importData.appSettings));
+      }
+
+      // Import session data if included and user wants it
+      if (importData.includesSession && importData.sessionData) {
+        sessionStorage.setItem(this.SESSION_DATA_KEY, JSON.stringify(importData.sessionData));
+      }
+    } catch (error) {
+      throw new Error(`Failed to import full configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  validateConfigurationFormat(configString: string): boolean {
+    try {
+      const config = JSON.parse(configString);
+
+      // Check required fields
+      if (!config.version || !config.exportedAt) {
+        return false;
+      }
+
+      // Check version compatibility
+      const supportedVersions = ['1.0', '1.1'];
+      if (!supportedVersions.includes(config.version)) {
+        return false;
+      }
+
+      // Validate structure if data exists
+      if (config.appSettings) {
+        const settings = config.appSettings;
+        if (typeof settings.autoRetryCount !== 'number' ||
+          !['light', 'dark'].includes(settings.theme) ||
+          !settings.uiPreferences) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Helper methods for default values
+  private getDefaultSessionData(): SessionData {
+    return {
+      currentShipmentPackages: [],
+      processedInvoices: [],
+      syncLogs: [],
+      lastFetchTime: '',
+      selectedPackageIds: []
+    };
+  }
+
+  private getDefaultAppSettings(): AppSettings {
+    return {
+      autoRetryCount: 3,
+      theme: 'light',
+      lastConfigUpdate: new Date().toISOString(),
+      uiPreferences: {
+        tablePageSize: 50,
+        defaultView: 'dashboard'
+      }
+    };
   }
 }
