@@ -48,26 +48,45 @@
     - Add error handling for API responses
     - _Requirements: 2.1_
 
-  - [ ] 3.2 Implement shipment packages fetching with pagination
+  - [x] 3.2 Implement shipment packages fetching with pagination
+
+
+
+
+
+
     - Create getAllShipmentPackages method with pagination support
     - Handle API rate limiting and retry logic
     - Write unit tests for API client methods
     - _Requirements: 1.1_
 
-  - [ ] 3.3 Implement invoice sending functionality
-    - Create sendInvoiceToOrder method for Trendyol API
-    - Add proper error handling and retry logic
-    - Test invoice sending with mock data
+  - [ ] 3.3 Implement invoice link sending functionality
+    - Create sendInvoiceLinkToOrder method for Trendyol API using shipmentPackageId
+    - Handle TrendyolInvoiceLinkRequest format with invoiceLink and shipmentPackageId
+    - Add proper error handling for HTTP 409 (duplicate invoice/link) errors
+    - Test invoice link sending with mock data
     - _Requirements: 1.5_
 
 - [ ] 4. Create Oblio API client
-  - [ ] 4.1 Implement basic Oblio API client structure
+  - [x] 4.1 Implement basic Oblio API client structure
+
+
+
+
+
+
     - Create OblioClient class with email/secret authentication
     - Implement credential validation method
     - Add error handling for API responses
     - _Requirements: 2.2_
 
-  - [ ] 4.2 Implement invoice creation functionality
+  - [x] 4.2 Implement invoice creation functionality
+
+
+
+
+
+
     - Create createInvoice method for Oblio API
     - Implement getInvoiceById for verification
     - Add getCompanies method for configuration
@@ -89,9 +108,10 @@
 
 - [ ] 6. Create sync service for orchestrating the workflow
   - [ ] 6.1 Implement package fetching and filtering
-    - Create fetchAllShipmentPackages method
-    - Implement filterPackagesWithoutInvoices logic
-    - Add checkInvoiceStatus method for duplicate detection
+    - Create fetchAllShipmentPackages method to get all orders regardless of status
+    - Implement filterPackagesWithoutInvoiceLinks logic to check for missing invoice links
+    - Add checkInvoiceLinkStatus method using local storage tracking
+    - Filter out packages with "Awaiting" status (stock transactions only)
     - _Requirements: 1.1, 5.1_
 
   - [ ] 6.2 Implement invoice processing workflow
@@ -121,15 +141,16 @@
 
 - [ ] 8. Build main dashboard and orders interface
   - [ ] 8.1 Create dashboard with fetch and process controls
-    - Build "Fetch All Shipment Packages" button and loading state
-    - Create progress indicators for long operations
-    - Add sync status display with counts
+    - Build "Fetch All Shipment Packages" button to get orders from all statuses
+    - Create progress indicators for long operations and pagination
+    - Add sync status display showing total fetched vs packages needing invoices
     - _Requirements: 1.1, 3.3_
 
   - [ ] 8.2 Implement orders table with selection
-    - Create table to display filtered shipment packages
-    - Add checkboxes for package selection
+    - Create table to display packages without invoice links (filtered from all statuses)
+    - Add checkboxes for package selection with shipmentPackageId tracking
     - Implement bulk select/deselect functionality
+    - Show package status and order information for context
     - _Requirements: 1.1_
 
   - [ ] 8.3 Add invoice creation interface

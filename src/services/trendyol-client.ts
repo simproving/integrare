@@ -26,15 +26,104 @@ export class TrendyolApiClient implements TrendyolClient {
   async getAllShipmentPackages(params?: ShipmentPackageParams): Promise<TrendyolShipmentPackage[]> {
     // Endpoint: GET /order/sellers/{sellerId}/orders
     // Reference: https://developers.trendyol.com/int/docs/international-marketplace/international-order-v2/int-getShipmentPackages
-    // Implementation will be added in later tasks
-    throw new Error('Not implemented yet');
+    
+    const allPackages: TrendyolShipmentPackage[] = [];
+    let currentPage = params?.page ?? 0;
+    const pageSize = Math.min(params?.size ?? 200, 200); // Max 200 per API docs
+    const orderByField = params?.orderByField ?? 'PackageLastModifiedDate';
+    const orderByDirection = params?.orderByDirection ?? 'DESC';
+    
+    try {
+      while (true) {
+        const queryParams = new URLSearchParams({
+          page: currentPage.toString(),
+          size: pageSize.toString(),
+          orderByField,
+          orderByDirection
+        });
+
+        const url = `${this.baseUrl}/order/sellers/${this.supplierId}/orders?${queryParams}`;
+        
+        const response = await this.makeRequestWithRetry(async () => {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: this.getAuthHeaders()
+          });
+          return response;
+        });
+
+        const pageData: ShipmentPackageResponse = await this.handleApiResponse(response);
+        
+        // Add packages from current page
+        allPackages.push(...pageData.content);
+        
+        // Check if we have more pages
+        if (currentPage >= pageData.totalPages - 1 || pageData.content.length === 0) {
+          break;
+        }
+        
+        // If specific page was requested, only fetch that page
+        if (params?.page !== undefined) {
+          break;
+        }
+        
+        currentPage++;
+        
+        // Add delay between requests to respect rate limits
+        await this.delay(100); // 100ms delay between requests
+      }
+      
+      return allPackages;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch shipment packages: ${error.message}`);
+      }
+      throw new Error('Unknown error occurred while fetching shipment packages');
+    }
   }
 
   async sendInvoiceToOrder(orderId: string, invoiceData: InvoiceInfo): Promise<void> {
     // Endpoint: POST /sellers/{sellerId}/seller-invoice-file
     // Reference: https://developers.trendyol.com/int/docs/international-marketplace/invoice-integration/int-send-invoice-file
-    // Implementation will be added in later tasks
-    throw new Error('Not implemented yet');
+    
+    if (!orderId || !invoiceData) {
+      throw new Error('Order ID and invoice data are required');
+    }
+
+    if (!invoiceData.invoiceLink || !invoiceData.invoiceNumber) {
+      throw new Error('Invoice link and invoice number are required');
+    }
+
+    try {
+      const url = `${this.baseUrl}/sellers/${this.supplierId}/seller-invoice-file`;
+      
+      // Based on Trendyol API documentation, the request should include the invoice file details
+      const requestBody = {
+        invoiceLink: invoiceData.invoiceLink,
+        invoiceNumber: invoiceData.invoiceNumber
+      };
+
+      const response = await this.makeRequestWithRetry(async () => {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(requestBody)
+        });
+        return response;
+      });
+
+      // Handle the response - for POST requests, we expect 200/201 status
+      if (!response.ok) {
+        await this.handleApiResponse(response);
+      }
+
+      // Success - no return value needed for void method
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to send invoice to order ${orderId}: ${error.message}`);
+      }
+      throw new Error(`Unknown error occurred while sending invoice to order ${orderId}`);
+    }
   }
 
   async validateCredentials(): Promise<boolean> {
@@ -85,6 +174,70 @@ export class TrendyolApiClient implements TrendyolClient {
       'storeFrontCode': this.storeFrontCode,
       'Content-Type': 'application/json'
     };
+  }
+
+  private async makeRequestWithRetry<T>(
+    requestFn: () => Promise<Response>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<Response> {
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await requestFn();
+        
+        // If rate limited, wait and retry
+        if (response.status === 429) {
+          if (attempt === maxRetries) {
+            throw new Error('Rate limit exceeded: Maximum retries reached');
+          }
+          
+          // Extract retry-after header if available, otherwise use exponential backoff
+          const retryAfter = response.headers.get('Retry-After');
+          const delay = retryAfter ? parseInt(retryAfter) * 1000 : baseDelay * Math.pow(2, attempt);
+          
+          await this.delay(delay);
+          continue;
+        }
+        
+        // For server errors (5xx), retry with exponential backoff
+        if (response.status >= 500 && response.status < 600) {
+          if (attempt === maxRetries) {
+            throw new Error(`Server error: HTTP ${response.status} after ${maxRetries} retries`);
+          }
+          
+          const delay = baseDelay * Math.pow(2, attempt);
+          await this.delay(delay);
+          continue;
+        }
+        
+        // For other errors or success, return the response
+        return response;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        
+        // For network errors, retry with exponential backoff
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          if (attempt === maxRetries) {
+            throw new Error(`Network error: Unable to connect after ${maxRetries} retries`);
+          }
+          
+          const delay = baseDelay * Math.pow(2, attempt);
+          await this.delay(delay);
+          continue;
+        }
+        
+        // For other errors, don't retry
+        throw lastError;
+      }
+    }
+    
+    throw lastError!;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private async handleApiResponse<T>(response: Response): Promise<T> {

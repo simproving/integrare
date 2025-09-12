@@ -10,7 +10,7 @@ The integration workflow consists of:
 3. User selects which orders to process
 4. Transforming selected order data to Oblio invoice format
 5. Creating invoices in Oblio with user confirmation
-6. Sending invoice details back to Trendyol
+6. Sending invoice link back to Trendyol
 7. Displaying results and maintaining local session state
 
 ## Architecture
@@ -67,9 +67,15 @@ graph TB
 ```typescript
 interface TrendyolClient {
   getAllShipmentPackages(): Promise<TrendyolShipmentPackage[]>
-  sendInvoiceToOrder(orderId: string, invoiceData: InvoiceInfo): Promise<void>
+  sendInvoiceLinkToOrder(shipmentPackageId: number, invoiceLink: string): Promise<void>
   validateCredentials(): Promise<boolean>
 }
+
+interface TrendyolInvoiceLinkRequest {
+  invoiceLink: string
+  shipmentPackageId: number
+}
+```
 
 interface ShipmentPackageParams {
   page?: number
@@ -89,7 +95,7 @@ interface ShipmentPackageResponse {
 
 **API Endpoints Used:**
 - `GET https://apigw.trendyol.com/integration/order/sellers/{sellerId}/orders` - Fetch shipment packages
-- `POST` https://apigw.trendyol.com/integration/sellers/{sellerId}/seller-invoice-file - Send invoice to order
+- `POST https://apigw.trendyol.com/integration/sellers/{sellerId}/seller-invoice-links` - Send invoice link to order
 
 **Authentication:**
 - Basic Authentication using API Key and API Secret
@@ -103,26 +109,29 @@ interface ShipmentPackageResponse {
 - `orderByField` - Sort field (PackageLastModifiedDate, CreatedDate)
 - `orderByDirection` - Sort direction (ASC, DESC)
 
-**Note:** The API does not provide a direct filter for orders without invoices. The application will:
-1. Fetch all shipment packages using pagination
-2. Check each package's invoice status client-side
-3. Filter out packages that already have invoices assigned
+**Note:** The API does not provide a direct filter for orders without invoice links. The application will:
+1. Fetch all shipment packages using pagination (regardless of status)
+2. Check each package client-side to determine if it has an invoice link
+3. Filter out packages that already have invoice links assigned
+4. Present remaining packages for invoice creation
 
 **API Documentation Reference:**
 - International Order V2 API: https://developers.trendyol.com/int/docs/international-marketplace/international-order-v2/int-getShipmentPackages
-- invoice send: https://developers.trendyol.com/int/docs/international-marketplace/invoice-integration/int-send-invoice-file
+- Invoice Link Integration: https://developers.trendyol.com/int/docs/international-marketplace/invoice-integration/int-send-invoice-link
 
 ### 3. Oblio API Client
 
 **Key Methods:**
 ```typescript
 interface OblioClient {
-  createInvoice(invoiceData: OblioInvoiceRequest): Promise<OblioInvoice>
+  createInvoice(invoiceData: OblioInvoiceRequest): Promise<OblioInvoiceResponse>
   validateCredentials(): Promise<boolean>
   getInvoiceById(docId: string): Promise<OblioInvoice>
   getCompanies(): Promise<OblioCompany[]>
 }
 ```
+
+**Note:** The `createInvoice` method returns an `OblioInvoiceResponse` that includes the invoice link directly in the response data. No separate API call is needed to get the invoice link.
 
 **API Endpoints Used:**
 - `POST https://www.oblio.eu/api/docs/invoice` - Create invoice
@@ -151,17 +160,23 @@ interface SyncService {
 
 **Manual Workflow:**
 1. User clicks "Fetch All Shipment Packages" button
-2. System fetches all packages using pagination and filters client-side for those without invoices
-3. Display filtered shipment packages in a table with checkboxes
-4. User reviews and selects which packages need invoices
-5. User clicks "Create Invoices" button
-6. Show progress and results for each shipment package
-7. Allow retry for failed invoice creations
+2. System fetches all packages using pagination (regardless of status)
+3. Filter client-side for packages without invoice links (excluding "Awaiting" status)
+4. Display filtered shipment packages in a table with checkboxes
+5. User reviews and selects which packages need invoices
+6. User clicks "Create Invoices" button
+7. For each selected package:
+   - Create invoice in Oblio (response includes invoice link)
+   - Send invoice link to Trendyol
+8. Show progress and results for each shipment package
+9. Allow retry for failed invoice creations
 
-**Invoice Status Detection:**
-- Check if package has `invoiceLink` or similar invoice-related fields
-- Maintain local storage of processed packages to avoid duplicates
+**Invoice Link Detection:**
+- Check if package already has an invoice link associated (via local tracking)
+- Maintain local storage of processed packages with their invoice links to avoid duplicates
 - Provide manual override option for edge cases
+- Filter out packages with status "Awaiting" (should only be used for stock transactions)
+- Note: Package status ("Invoiced", "Shipped", etc.) does not guarantee an invoice link exists
 
 ### 5. Data Transformation Service
 
@@ -233,6 +248,7 @@ interface SessionData {
 interface ProcessedInvoice {
   trendyolOrderId: string
   oblioInvoiceId?: string
+  oblioInvoiceLink?: string
   status: 'pending' | 'completed' | 'failed'
   errorMessage?: string
   processedAt: string
@@ -270,6 +286,7 @@ interface SessionData {
 interface ProcessedInvoice {
   trendyolOrderId: string
   oblioInvoiceId?: string
+  oblioInvoiceLink?: string
   status: 'pending' | 'completed' | 'failed'
   errorMessage?: string
   processedAt: string
@@ -281,67 +298,104 @@ interface ProcessedInvoice {
 ```typescript
 // Trendyol Models (based on API documentation)
 interface TrendyolShipmentPackage {
-  id: number
-  packageNumber: string
-  orderId: string
-  orderDate: string
-  status: string
+  id: number // shipmentPackageId - this is what we send to Trendyol invoice API
+  orderNumber: string
+  orderDate: number // timestamp in milliseconds GMT +3
+  originShipmentDate: number // timestamp - date of transfer to seller
+  lastModifiedDate: number // last status update date
+  shipmentPackageStatus: string // "Created", "Picking", "Invoiced", "Shipped", "Delivered", etc.
+  status: string // same as shipmentPackageStatus
   deliveryType: string
-  agreedDeliveryDate: string
-  estimatedDeliveryStartDate: string
-  estimatedDeliveryEndDate: string
+  agreedDeliveryDate: number
+  estimatedDeliveryStartDate: number
+  estimatedDeliveryEndDate: number
+  grossAmount: number
+  totalPrice: number
   totalDiscount: number
   totalTyDiscount: number
-  taxNumber: string
-  invoiceAddress: InvoiceAddress
-  deliveryAddress: DeliveryAddress
-  orderLines: OrderLine[]
+  taxNumber: string | null
+  currencyCode: string
+  invoiceAddress: TrendyolAddress
+  shipmentAddress: TrendyolAddress
+  customerFirstName: string
+  customerLastName: string
+  customerEmail: string
+  customerId: number
+  identityNumber: string
   packageHistories: PackageHistory[]
-  shipmentAddress: ShipmentAddress
-  customerInfo: CustomerInfo
-  cargoTrackingNumber: string
+  cargoTrackingNumber: number
   cargoTrackingLink: string
   cargoSenderNumber: string
   cargoProviderName: string
   lines: PackageLine[]
+  warehouseId: number
+  createdBy: string // "order-creation", "cancel", "split", "transfer"
 }
 
-interface InvoiceAddress {
+interface TrendyolAddress {
   id: number
   firstName: string
   lastName: string
   company: string
   address1: string
   address2: string
+  addressLines?: {
+    addressLine1: string
+    addressLine2: string
+  }
   city: string
   cityCode: number
   district: string
   districtId: number
+  countyId?: number // eligible for CEE region
+  countyName?: string // eligible for CEE region
+  shortAddress?: string // eligible for Gulf region
+  stateName?: string // eligible for Gulf region
   postalCode: string
   countryCode: string
   neighborhoodId: number
   neighborhood: string
+  phone: number
+  latitude?: string
+  longitude?: string
+  fullAddress: string
+  fullName: string
+}
+
+interface PackageHistory {
+  createdDate: number // timestamp
+  status: string // "Awaiting", "Created", "Picking", "Invoiced", "Shipped", "Delivered", etc.
 }
 
 interface PackageLine {
+  id: number // orderLineId
   quantity: number
   salesCampaignId: number
   productSize: string
-  merchantSku: string
+  merchantSku: string // stockCode
   productName: string
-  productCode: number
-  merchantId: number
-  amount: number
-  discount: number
-  tyDiscount: number
+  productCode: number // variantId
+  productOrigin: string
+  merchantId: number // sellerId
+  amount: number // total price of the line
+  price: number // unit price
+  discount: number // total discount of the line
+  tyDiscount: number // always 0.00 for international orders
   discountDetails: DiscountDetail[]
   currencyCode: string
   productColor: string
-  id: number
-  sku: string
-  vatBaseAmount: number
+  sku: string // same as barcode
   barcode: string
+  vatBaseAmount: number // vatRate
   orderLineItemStatusName: string
+  productCategoryId: number
+  commission: number
+}
+
+interface DiscountDetail {
+  lineItemPrice: number
+  lineItemDiscount: number
+  lineItemTyDiscount: number // always 0.00 for international orders
 }
 
 // Oblio Models (based on API documentation)
@@ -400,6 +454,28 @@ interface OblioProduct {
   productType?: string
 }
 
+interface OblioInvoiceResponse {
+  status: number
+  statusMessage: string
+  data: {
+    seriesName: string
+    number: string
+    link: string // Direct URL to the invoice PDF - this is what we send to Trendyol
+  }
+}
+
+interface OblioInvoice {
+  docId: string
+  seriesName: string
+  number: string
+  link: string
+  issueDate: string
+  dueDate: string
+  value: number
+  currency: string
+  status: string
+}
+
 interface OblioCompany {
   cif: string
   name: string
@@ -440,9 +516,14 @@ interface SyncResult {
    - Format inconsistencies
 
 3. **Business Logic Errors**
-   - Duplicate invoices
+   - Duplicate invoices (HTTP 409 from Trendyol)
+   - Invoice link already used for another package (HTTP 409 from Trendyol)
    - Invalid order states
    - Currency mismatches
+
+4. **Trendyol-Specific Errors**
+   - HTTP 409: Invoice already exists for shipment package
+   - HTTP 409: Invoice link already used for different shipment package
 
 ### Retry Strategy
 
