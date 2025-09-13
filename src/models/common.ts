@@ -21,6 +21,9 @@ export interface ProcessedInvoice {
   status: 'pending' | 'completed' | 'failed';
   errorMessage?: string;
   processedAt: string;
+  retryCount?: number;
+  lastRetryAt?: string;
+  nextRetryAt?: string;
 }
 
 export interface LogEntry {

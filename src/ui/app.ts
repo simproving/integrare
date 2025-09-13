@@ -1,17 +1,27 @@
 // Main application controller and DOM manipulation
 
+import { ConfigurationPanel } from './config-panel';
+import { Dashboard } from './dashboard';
+import { BrowserStorageService } from '../services/storage-service';
+import { InvoiceSyncService } from '../services/sync-service';
+import { TrendyolApiClient } from '../services/trendyol-client';
+import { OblioClient } from '../services/oblio-client';
+
 export class App {
-  private dashboard!: import('./dashboard').Dashboard;
-  private configPanel!: import('./config-panel').ConfigurationPanel;
+  private dashboard!: Dashboard;
+  private configPanel!: ConfigurationPanel;
+  private storageService: BrowserStorageService;
+  private syncService!: InvoiceSyncService;
   private currentView: 'dashboard' | 'config' = 'dashboard';
 
   constructor() {
-    // Initialization will be implemented in later tasks
+    this.storageService = new BrowserStorageService();
   }
 
   async init(): Promise<void> {
     try {
-      // Initialize the application
+      // Initialize services and components
+      await this.initializeComponents();
       this.setupEventListeners();
       this.showDashboard();
       console.log('Application initialized successfully');
@@ -19,6 +29,27 @@ export class App {
       console.error('Failed to initialize application:', error);
       throw error;
     }
+  }
+
+  private async initializeComponents(): Promise<void> {
+    // Initialize API clients (they will be configured when credentials are available)
+    const trendyolClient = new TrendyolApiClient('', '', '', 'TR'); // Will be configured later
+    const oblioClient = new OblioClient();
+
+    // Initialize sync service
+    this.syncService = new InvoiceSyncService(trendyolClient, oblioClient, this.storageService);
+
+    // Initialize configuration panel
+    this.configPanel = new ConfigurationPanel(this.storageService);
+    await this.configPanel.initialize();
+
+    // Initialize dashboard
+    const dashboardSection = document.getElementById('dashboard-section');
+    if (!dashboardSection) {
+      throw new Error('Dashboard section not found in DOM');
+    }
+    this.dashboard = new Dashboard(dashboardSection, this.syncService);
+    this.dashboard.render();
   }
 
   showDashboard(): void {
@@ -64,29 +95,6 @@ export class App {
 
     if (configBtn) {
       configBtn.addEventListener('click', () => this.showConfiguration());
-    }
-
-    // Setup placeholder event listeners for buttons
-    const fetchBtn = document.getElementById('fetch-packages-btn');
-    const processBtn = document.getElementById('process-selected-btn');
-    const saveConfigBtn = document.getElementById('save-config-btn');
-
-    if (fetchBtn) {
-      fetchBtn.addEventListener('click', () => {
-        console.log('Fetch packages clicked - functionality will be implemented in later tasks');
-      });
-    }
-
-    if (processBtn) {
-      processBtn.addEventListener('click', () => {
-        console.log('Process selected clicked - functionality will be implemented in later tasks');
-      });
-    }
-
-    if (saveConfigBtn) {
-      saveConfigBtn.addEventListener('click', () => {
-        console.log('Save config clicked - functionality will be implemented in later tasks');
-      });
     }
   }
 

@@ -101,65 +101,118 @@
 
 - [ ] 5. Implement data transformation service
   - [ ] 5.1 Create transformation logic for Trendyol to Oblio format
+
+
+
+
+
+
     - Map TrendyolShipmentPackage fields to OblioInvoiceRequest
     - Handle customer information and address mapping
     - Transform order lines to Oblio product format
     - _Requirements: 1.2_
 
-  - [ ] 5.2 Add validation for transformed data
+  - [x] 5.2 Add validation for transformed data
+
+
+
+
+
+
     - Implement validation functions for required Oblio fields
     - Add error handling for missing or invalid data
     - Create unit tests for transformation logic
     - _Requirements: 5.3, 5.4_
 
 - [ ] 6. Create sync service for orchestrating the workflow
-  - [ ] 6.1 Implement package fetching and filtering
+  - [x] 6.1 Implement package fetching and filtering
+
+
+
+
+
+
     - Create fetchAllShipmentPackages method to get all orders regardless of status
     - Implement filterPackagesWithoutInvoiceLinks logic to check for missing invoice links
     - Add checkInvoiceLinkStatus method using local storage tracking
     - Filter out packages with "Awaiting" status (stock transactions only)
     - _Requirements: 1.1, 5.1_
 
-  - [ ] 6.2 Implement invoice processing workflow
+  - [x] 6.2 Implement invoice processing workflow
+
+
+
+
+
     - Create processSelectedPackages method
     - Orchestrate transformation, Oblio creation, and Trendyol update
     - Add comprehensive error handling and logging
     - _Requirements: 1.2, 1.3, 1.4, 1.5_
 
-  - [ ] 6.3 Add retry functionality for failed operations
+  - [x] 6.3 Add retry functionality for failed operations
+
+
+
+
+
     - Implement retryFailedInvoice method with exponential backoff
     - Track retry attempts and failure reasons
     - Write unit tests for retry logic
     - _Requirements: 1.4, 3.5_
 
 - [ ] 7. Build configuration panel UI
-  - [ ] 7.1 Create configuration form interface
+  - [x] 7.1 Create configuration form interface
+
+
+
+
+
     - Build HTML form for Trendyol API credentials
-    - Create Oblio configuration section with CIF and work station
+    - Create Oblio configuration section with CIF
     - Add form validation and user feedback
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 7.2 Implement configuration management
+  - [x] 7.2 Implement configuration management
+
+
+
+
+
     - Connect form to storage service for saving/loading credentials
     - Add credential validation with API test calls
     - Implement configuration export/import functionality
     - _Requirements: 2.5_
 
 - [ ] 8. Build main dashboard and orders interface
-  - [ ] 8.1 Create dashboard with fetch and process controls
+  - [x] 8.1 Create dashboard with fetch and process controls
+
+
+
+
+
     - Build "Fetch All Shipment Packages" button to get orders from all statuses
     - Create progress indicators for long operations and pagination
     - Add sync status display showing total fetched vs packages needing invoices
     - _Requirements: 1.1, 3.3_
 
-  - [ ] 8.2 Implement orders table with selection
+  - [x] 8.2 Implement orders table with selection
+
+
+
+
+
     - Create table to display packages without invoice links (filtered from all statuses)
     - Add checkboxes for package selection with shipmentPackageId tracking
     - Implement bulk select/deselect functionality
     - Show package status and order information for context
     - _Requirements: 1.1_
 
-  - [ ] 8.3 Add invoice creation interface
+  - [x] 8.3 Add invoice creation interface
+
+
+
+
+
     - Create "Create Invoices" button for selected packages
     - Show real-time progress for each package processing
     - Display results with success/failure status

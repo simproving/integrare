@@ -61,6 +61,16 @@ export interface OblioCollect {
   value: number;
 }
 
+export interface OblioInvoiceResponse {
+  status: number;
+  statusMessage: string;
+  data: {
+    seriesName: string;
+    number: string;
+    link: string; // Direct URL to the invoice PDF - this is what we send to Trendyol
+  };
+}
+
 export interface OblioInvoice {
   docId: string;
   number: string;

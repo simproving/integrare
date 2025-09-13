@@ -20,22 +20,22 @@
 
 ### Development
 ```bash
-npm run dev          # Start Vite dev server on port 3000
-npm run build        # Build for production
-npm run preview      # Preview production build on port 4173
-npm start           # Build and preview (production simulation)
+cmd /c "npm run dev"      # Start Vite dev server on port 3000
+cmd /c "npm run build"      # Build for production
+cmd /c "npm run preview"      # Preview production build on port 4173
+cmd /c "npm start"     # Build and preview (production simulation)
 ```
 
 ### Testing
 ```bash
-npm test            # Run tests once
-npm run test:watch  # Run tests in watch mode
-npm run test:ui     # Run tests with UI interface
+cmd /c "npm test"           # Run tests once
+cmd /c "npm run test:watch"  # Run tests in watch mode
+cmd /c "npm run test:ui"     # Run tests with UI interface
 ```
 
 ## Deployment
 - Configured for GitHub Pages deployment
-- Production base path: `/trendyol-oblio-integration/`
+- Production base path: `/integrare/`
 - Assets optimized with esbuild minification
 - Source maps enabled for debugging
 

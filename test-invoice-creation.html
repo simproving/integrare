@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Invoice Creation Interface</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        .progress-header { margin-bottom: 2rem; padding: 1.5rem; background-color: #f8f9fa; border-radius: 8px; }
+        .overall-progress { display: flex; align-items: center; gap: 1rem; }
+        .progress-bar { flex: 1; height: 20px; background-color: #e9ecef; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #007bff, #0056b3); border-radius: 10px; transition: width 0.3s ease; }
+        .progress-list { display: flex; flex-direction: column; gap: 1rem; }
+        .progress-item { background-color: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 1.5rem; }
+        .progress-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e9ecef; }
+        .progress-status { padding: 0.375rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .status-pending { background-color: #f8f9fa; color: #6c757d; }
+        .status-processing { background-color: #fff3cd; color: #856404; }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .progress-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
+        .progress-step { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background-color: #f8f9fa; border-radius: 6px; }
+        .progress-step.processing { background-color: #fff3cd; }
+        .progress-step.success { background-color: #d4edda; }
+        .progress-step.error { background-color: #f8d7da; }
+        .step-icon { font-size: 1.2rem; min-width: 1.5rem; text-align: center; }
+        .step-text { font-size: 0.9rem; color: #495057; flex: 1; }
+        .progress-error { margin-top: 1rem; padding: 0.75rem; background-color: #f8d7da; color: #721c24; border-radius: 4px; }
+        .hidden { display: none; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Invoice Creation Interface Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="showProgressInterface()">Show Progress Interface</button>
+        <button onclick="simulateProcessing()">Simulate Processing</button>
+        <button onclick="hideProgressInterface()">Hide Progress Interface</button>
+    </div>
+
+    <div id="processing-results" class="test-section hidden">
+        <h3>Creating Invoices</h3>
+        <div id="results-container">
+            <!-- Progress interface will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        // Mock package IDs for testing
+        const testPackageIds = ['123', '456', '789'];
+        
+        function showProgressInterface() {
+            const resultsSection = document.getElementById('processing-results');
+            const resultsContainer = document.getElementById('results-container');
+
+            if (!resultsSection || !resultsContainer) {
+                return;
+            }
+
+            // Clear previous results
+            resultsContainer.innerHTML = '';
+
+            // Show results section
+            resultsSection.classList.remove('hidden');
+
+            // Create progress header
+            const progressHeader = document.createElement('div');
+            progressHeader.className = 'progress-header';
+            progressHeader.innerHTML = `
+                <h3>Creating Invoices</h3>
+                <div class="overall-progress">
+                    <div class="progress-bar">
+                        <div id="overall-progress-fill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <span id="overall-progress-text">0 / ${testPackageIds.length} packages processed</span>
+                </div>
+            `;
+            resultsContainer.appendChild(progressHeader);
+
+            // Create progress list for individual packages
+            const progressList = document.createElement('div');
+            progressList.className = 'progress-list';
+            progressList.id = 'progress-list';
+
+            testPackageIds.forEach(packageId => {
+                const orderNumber = `ORDER-${packageId}`;
+                
+                const progressItem = document.createElement('div');
+                progressItem.className = 'progress-item';
+                progressItem.id = `progress-item-${packageId}`;
+                progressItem.innerHTML = `
+                    <div class="progress-item-header">
+                        <span class="package-info">
+                            <strong>Package ${packageId}</strong>
+                            <small>Order: ${orderNumber}</small>
+                        </span>
+                        <span id="status-${packageId}" class="progress-status status-pending">Pending</span>
+                    </div>
+                    <div class="progress-steps">
+                        <div id="step-validate-${packageId}" class="progress-step">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">Validating package data</span>
+                        </div>
+                        <div id="step-transform-${packageId}" class="progress-step">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">Transforming to Oblio format</span>
+                        </div>
+                        <div id="step-create-${packageId}" class="progress-step">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">Creating invoice in Oblio</span>
+                        </div>
+                        <div id="step-send-${packageId}" class="progress-step">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">Sending link to Trendyol</span>
+                        </div>
+                    </div>
+                    <div id="error-${packageId}" class="progress-error hidden"></div>
+                `;
+                progressList.appendChild(progressItem);
+            });
+
+            resultsContainer.appendChild(progressList);
+        }
+
+        function updatePackageProgress(packageId, step, status, message) {
+            const stepElement = document.getElementById(`step-${step}-${packageId}`);
+            const statusElement = document.getElementById(`status-${packageId}`);
+            
+            if (stepElement) {
+                const iconElement = stepElement.querySelector('.step-icon');
+                const textElement = stepElement.querySelector('.step-text');
+                
+                if (iconElement && textElement) {
+                    switch (status) {
+                        case 'processing':
+                            iconElement.textContent = '⏳';
+                            stepElement.className = 'progress-step processing';
+                            if (message) textElement.textContent = message;
+                            break;
+                        case 'success':
+                            iconElement.textContent = '✅';
+                            stepElement.className = 'progress-step success';
+                            break;
+                        case 'error':
+                            iconElement.textContent = '❌';
+                            stepElement.className = 'progress-step error';
+                            if (message) textElement.textContent = message;
+                            break;
+                        default:
+                            iconElement.textContent = '⏳';
+                            stepElement.className = 'progress-step';
+                    }
+                }
+            }
+
+            // Update overall package status
+            if (statusElement) {
+                switch (status) {
+                    case 'processing':
+                        statusElement.className = 'progress-status status-processing';
+                        statusElement.textContent = 'Processing';
+                        break;
+                    case 'success':
+                        statusElement.className = 'progress-status status-success';
+                        statusElement.textContent = 'Completed';
+                        break;
+                    case 'error':
+                        statusElement.className = 'progress-status status-error';
+                        statusElement.textContent = 'Failed';
+                        break;
+                }
+            }
+
+            // Show error message if provided
+            if (status === 'error' && message) {
+                const errorElement = document.getElementById(`error-${packageId}`);
+                if (errorElement) {
+                    errorElement.textContent = message;
+                    errorElement.classList.remove('hidden');
+                }
+            }
+        }
+
+        function updateOverallProgress(completed, total) {
+            const progressFill = document.getElementById('overall-progress-fill');
+            const progressText = document.getElementById('overall-progress-text');
+            
+            if (progressFill) {
+                const percentage = (completed / total) * 100;
+                progressFill.style.width = `${percentage}%`;
+            }
+            
+            if (progressText) {
+                progressText.textContent = `${completed} / ${total} packages processed`;
+            }
+        }
+
+        async function simulateProcessing() {
+            if (!document.getElementById('progress-list')) {
+                showProgressInterface();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            let completedCount = 0;
+            
+            for (const packageId of testPackageIds) {
+                // Simulate processing steps
+                const steps = ['validate', 'transform', 'create', 'send'];
+                const shouldFail = packageId === '456'; // Simulate failure for second package
+                
+                for (let i = 0; i < steps.length; i++) {
+                    const step = steps[i];
+                    
+                    if (shouldFail && i === 2) {
+                        // Simulate failure at create step
+                        updatePackageProgress(packageId, step, 'error', 'Failed to create invoice in Oblio');
+                        // Mark remaining steps as error too
+                        for (let j = i + 1; j < steps.length; j++) {
+                            updatePackageProgress(packageId, steps[j], 'error', 'Skipped due to previous error');
+                        }
+                        break;
+                    } else {
+                        updatePackageProgress(packageId, step, 'processing', `Processing ${step}...`);
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                        updatePackageProgress(packageId, step, 'success');
+                    }
+                }
+                
+                completedCount++;
+                updateOverallProgress(completedCount, testPackageIds.length);
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+
+        function hideProgressInterface() {
+            const resultsSection = document.getElementById('processing-results');
+            if (resultsSection) {
+                resultsSection.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

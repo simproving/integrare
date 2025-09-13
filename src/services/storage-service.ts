@@ -287,7 +287,7 @@ export class BrowserStorageService implements StorageService {
       // Only update properties that are actually provided in the updates object
       const updatedInvoice: import('../models/common').ProcessedInvoice = {
         trendyolOrderId: existingInvoice.trendyolOrderId, // Always preserve required field
-        processedAt: existingInvoice.processedAt, // Always preserve required field
+        processedAt: updates.processedAt !== undefined ? updates.processedAt : existingInvoice.processedAt,
         status: updates.status !== undefined ? updates.status : existingInvoice.status
       };
 
@@ -300,6 +300,21 @@ export class BrowserStorageService implements StorageService {
       const errorMessage = updates.errorMessage !== undefined ? updates.errorMessage : existingInvoice.errorMessage;
       if (errorMessage !== undefined) {
         updatedInvoice.errorMessage = errorMessage;
+      }
+
+      const retryCount = updates.retryCount !== undefined ? updates.retryCount : existingInvoice.retryCount;
+      if (retryCount !== undefined) {
+        updatedInvoice.retryCount = retryCount;
+      }
+
+      const lastRetryAt = updates.lastRetryAt !== undefined ? updates.lastRetryAt : existingInvoice.lastRetryAt;
+      if (lastRetryAt !== undefined) {
+        updatedInvoice.lastRetryAt = lastRetryAt;
+      }
+
+      const nextRetryAt = updates.nextRetryAt !== undefined ? updates.nextRetryAt : existingInvoice.nextRetryAt;
+      if (nextRetryAt !== undefined) {
+        updatedInvoice.nextRetryAt = nextRetryAt;
       }
 
       sessionData.processedInvoices[invoiceIndex] = updatedInvoice;

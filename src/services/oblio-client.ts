@@ -1,5 +1,6 @@
 import type { 
   OblioInvoiceRequest, 
+  OblioInvoiceResponse,
   OblioInvoice, 
   OblioCompany 
 } from '../models/oblio.js';
@@ -59,7 +60,7 @@ export class OblioClient {
    * Endpoint: POST /docs/invoice
    * Reference: https://www.oblio.eu/api#overview
    */
-  async createInvoice(invoiceData: OblioInvoiceRequest): Promise<OblioInvoice> {
+  async createInvoice(invoiceData: OblioInvoiceRequest): Promise<OblioInvoiceResponse> {
     if (!this.credentials) {
       throw new Error('Credentials not set');
     }
