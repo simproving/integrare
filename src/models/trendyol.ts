@@ -159,6 +159,11 @@ export interface InvoiceInfo {
   invoiceNumber: string;
 }
 
+export interface TrendyolInvoiceLinkRequest {
+  invoiceLink: string;
+  shipmentPackageId: number;
+}
+
 // Trendyol API Error types
 export interface TrendyolApiError {
   code: string;

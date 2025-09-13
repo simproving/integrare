@@ -1,10 +1,11 @@
 // Trendyol API Client interface and implementation
 
-import { TrendyolShipmentPackage, ShipmentPackageParams, ShipmentPackageResponse, InvoiceInfo, TrendyolErrorResponse } from '../models/trendyol';
+import { TrendyolShipmentPackage, ShipmentPackageParams, ShipmentPackageResponse, InvoiceInfo, TrendyolErrorResponse, TrendyolInvoiceLinkRequest } from '../models/trendyol';
 
 export interface TrendyolClient {
   getAllShipmentPackages(params?: ShipmentPackageParams): Promise<TrendyolShipmentPackage[]>;
   sendInvoiceToOrder(orderId: string, invoiceData: InvoiceInfo): Promise<void>;
+  sendInvoiceLinkToOrder(shipmentPackageId: number, invoiceLink: string): Promise<void>;
   validateCredentials(): Promise<boolean>;
 }
 
@@ -123,6 +124,83 @@ export class TrendyolApiClient implements TrendyolClient {
         throw new Error(`Failed to send invoice to order ${orderId}: ${error.message}`);
       }
       throw new Error(`Unknown error occurred while sending invoice to order ${orderId}`);
+    }
+  }
+
+  async sendInvoiceLinkToOrder(shipmentPackageId: number, invoiceLink: string): Promise<void> {
+    // Endpoint: POST /sellers/{sellerId}/seller-invoice-links
+    // Reference: https://developers.trendyol.com/int/docs/international-marketplace/invoice-integration/int-send-invoice-link
+    
+    // Check for null/undefined values first
+    if (shipmentPackageId == null || invoiceLink == null) {
+      throw new Error('Shipment package ID and invoice link are required');
+    }
+
+    if (typeof shipmentPackageId !== 'number' || shipmentPackageId <= 0) {
+      throw new Error('Shipment package ID must be a positive number');
+    }
+
+    if (typeof invoiceLink !== 'string' || invoiceLink.trim().length === 0) {
+      throw new Error('Invoice link must be a non-empty string');
+    }
+
+    try {
+      const url = `${this.baseUrl}/sellers/${this.supplierId}/seller-invoice-links`;
+      
+      const requestBody: TrendyolInvoiceLinkRequest = {
+        invoiceLink: invoiceLink.trim(),
+        shipmentPackageId
+      };
+
+      const response = await this.makeRequestWithRetry(async () => {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(requestBody)
+        });
+        return response;
+      });
+
+      // Handle specific HTTP 409 errors for duplicate invoice/link
+      if (response.status === 409) {
+        let errorMessage = 'Duplicate invoice or link detected';
+        
+        try {
+          const errorBody = await response.text();
+          if (errorBody) {
+            try {
+              const trendyolError: TrendyolErrorResponse = JSON.parse(errorBody);
+              if (trendyolError.errors && trendyolError.errors.length > 0) {
+                errorMessage = trendyolError.errors.map(err => err.message).join(', ');
+              } else if (trendyolError.message) {
+                errorMessage = trendyolError.message;
+              }
+            } catch {
+              errorMessage += ` - ${errorBody}`;
+            }
+          }
+        } catch {
+          // Ignore error parsing response body
+        }
+        
+        throw new Error(`HTTP 409 - ${errorMessage}`);
+      }
+
+      // Handle other non-success responses
+      if (!response.ok) {
+        await this.handleApiResponse(response);
+      }
+
+      // Success - no return value needed for void method
+    } catch (error) {
+      if (error instanceof Error) {
+        // Re-throw HTTP 409 errors as-is to preserve specific error handling
+        if (error.message.startsWith('HTTP 409')) {
+          throw error;
+        }
+        throw new Error(`Failed to send invoice link to shipment package ${shipmentPackageId}: ${error.message}`);
+      }
+      throw new Error(`Unknown error occurred while sending invoice link to shipment package ${shipmentPackageId}`);
     }
   }
 

@@ -685,4 +685,328 @@ describe('TrendyolApiClient', () => {
       vi.restoreAllMocks();
     });
   });
+
+  describe('sendInvoiceLinkToOrder', () => {
+    const mockShipmentPackageId = 12345;
+    const mockInvoiceLink = 'https://example.com/invoice.pdf';
+
+    it('should successfully send invoice link to order', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({})
+      });
+
+      await client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://apigw.trendyol.com/integration/sellers/test-supplier-id/seller-invoice-links',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic dGVzdC1hcGkta2V5OnRlc3Qtc2VjcmV0',
+            'User-Agent': 'test-supplier-id - SelfIntegration',
+            'storeFrontCode': 'TR',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            invoiceLink: 'https://example.com/invoice.pdf',
+            shipmentPackageId: 12345
+          })
+        }
+      );
+    });
+
+    it('should trim whitespace from invoice link', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({})
+      });
+
+      await client.sendInvoiceLinkToOrder(mockShipmentPackageId, '  https://example.com/invoice.pdf  ');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: JSON.stringify({
+            invoiceLink: 'https://example.com/invoice.pdf',
+            shipmentPackageId: 12345
+          })
+        })
+      );
+    });
+
+    it('should throw error when shipmentPackageId is missing', async () => {
+      await expect(client.sendInvoiceLinkToOrder(0, mockInvoiceLink)).rejects.toThrow('Shipment package ID must be a positive number');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when shipmentPackageId is not a number', async () => {
+      await expect(client.sendInvoiceLinkToOrder(null as any, mockInvoiceLink)).rejects.toThrow('Shipment package ID and invoice link are required');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when shipmentPackageId is negative', async () => {
+      await expect(client.sendInvoiceLinkToOrder(-1, mockInvoiceLink)).rejects.toThrow('Shipment package ID must be a positive number');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when invoiceLink is missing', async () => {
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, '')).rejects.toThrow('Invoice link must be a non-empty string');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when invoiceLink is null', async () => {
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, null as any)).rejects.toThrow('Shipment package ID and invoice link are required');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when invoiceLink is not a string', async () => {
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, 123 as any)).rejects.toThrow('Invoice link must be a non-empty string');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when invoiceLink is only whitespace', async () => {
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, '   ')).rejects.toThrow('Invoice link must be a non-empty string');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should handle HTTP 409 duplicate invoice error with specific message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: async () => JSON.stringify({
+          errors: [
+            { code: 'DUPLICATE_INVOICE', message: 'Invoice already exists for this shipment package' }
+          ]
+        })
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('HTTP 409 - Invoice already exists for this shipment package');
+    });
+
+    it('should handle HTTP 409 duplicate link error with specific message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: async () => JSON.stringify({
+          message: 'Invoice link already used for different shipment package'
+        })
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('HTTP 409 - Invoice link already used for different shipment package');
+    });
+
+    it('should handle HTTP 409 error with plain text response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: async () => 'Duplicate invoice detected'
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('HTTP 409 - Duplicate invoice or link detected - Duplicate invoice detected');
+    });
+
+    it('should handle HTTP 409 error with empty response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: async () => ''
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('HTTP 409 - Duplicate invoice or link detected');
+    });
+
+    it('should handle HTTP 409 error with invalid JSON response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: async () => 'Invalid JSON {'
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('HTTP 409 - Duplicate invoice or link detected - Invalid JSON {');
+    });
+
+    it('should handle other API errors normally', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => JSON.stringify({
+          errors: [
+            { code: 'INVALID_LINK', message: 'Invoice link is not accessible' }
+          ]
+        })
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('Failed to send invoice link to shipment package 12345: Invoice link is not accessible');
+    });
+
+    it('should handle authentication errors', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: async () => 'Authentication failed'
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('Failed to send invoice link to shipment package 12345: Authentication failed: Invalid API credentials');
+    });
+
+    it('should handle rate limiting with retry', async () => {
+      // First call returns 429, second call succeeds
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Map([['Retry-After', '1']])
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({})
+        });
+
+      // Mock setTimeout to avoid actual delays in tests
+      vi.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+        fn();
+        return 1 as any;
+      });
+
+      await client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.restoreAllMocks();
+    });
+
+    it('should handle server errors with retry', async () => {
+      // First call returns 500, second call succeeds
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+          text: async () => 'Server error'
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({})
+        });
+
+      // Mock setTimeout to avoid actual delays in tests
+      vi.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+        fn();
+        return 1 as any;
+      });
+
+      await client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.restoreAllMocks();
+    });
+
+    it('should fail after maximum retries for rate limiting', async () => {
+      // All calls return 429
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: new Map()
+      });
+
+      // Mock setTimeout to avoid actual delays in tests
+      vi.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+        fn();
+        return 1 as any;
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('Failed to send invoice link to shipment package 12345: Rate limit exceeded: Maximum retries reached');
+
+      expect(mockFetch).toHaveBeenCalledTimes(4); // Initial + 3 retries
+
+      vi.restoreAllMocks();
+    });
+
+    it('should handle network errors with retry', async () => {
+      // First call fails with network error, second call succeeds
+      mockFetch
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({})
+        });
+
+      // Mock setTimeout to avoid actual delays in tests
+      vi.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+        fn();
+        return 1 as any;
+      });
+
+      await client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.restoreAllMocks();
+    });
+
+    it('should fail after maximum retries for network errors', async () => {
+      // All calls fail with network error
+      mockFetch.mockRejectedValue(new TypeError('fetch failed'));
+
+      // Mock setTimeout to avoid actual delays in tests
+      vi.spyOn(global, 'setTimeout').mockImplementation((fn: any) => {
+        fn();
+        return 1 as any;
+      });
+
+      await expect(client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink))
+        .rejects.toThrow('Failed to send invoice link to shipment package 12345: Network error: Unable to connect after 3 retries');
+
+      expect(mockFetch).toHaveBeenCalledTimes(4); // Initial + 3 retries
+
+      vi.restoreAllMocks();
+    });
+
+    it('should preserve HTTP 409 error messages without wrapping', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: async () => JSON.stringify({
+          errors: [
+            { code: 'DUPLICATE_INVOICE', message: 'Specific duplicate error message' }
+          ]
+        })
+      });
+
+      try {
+        await client.sendInvoiceLinkToOrder(mockShipmentPackageId, mockInvoiceLink);
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('HTTP 409 - Specific duplicate error message');
+        // Verify it's not wrapped with the generic error message
+        expect((error as Error).message).not.toContain('Failed to send invoice link to shipment package');
+      }
+    });
+  });
 });

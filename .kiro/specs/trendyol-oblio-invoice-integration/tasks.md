@@ -60,7 +60,13 @@
     - Write unit tests for API client methods
     - _Requirements: 1.1_
 
-  - [ ] 3.3 Implement invoice link sending functionality
+  - [x] 3.3 Implement invoice link sending functionality
+
+
+
+
+
+
     - Create sendInvoiceLinkToOrder method for Trendyol API using shipmentPackageId
     - Handle TrendyolInvoiceLinkRequest format with invoiceLink and shipmentPackageId
     - Add proper error handling for HTTP 409 (duplicate invoice/link) errors
